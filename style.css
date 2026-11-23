@@ -84,9 +84,32 @@ body {
   gap: 8px;
 }
 
-#difficulty {
+#difficulty,
+#controls-row {
   display: flex;
   gap: 6px;
+}
+
+#controls-row {
+  align-items: center;
+  gap: 10px;
+}
+
+#permadeath-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: bold 12px/1.1 "Courier New", monospace;
+  color: #fff;
+  cursor: pointer;
+}
+
+#permadeath {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: #ffd700;
+  cursor: pointer;
 }
 
 #controls button {

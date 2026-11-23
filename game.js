@@ -391,7 +391,13 @@ function updateScore(seconds) {
       addPoints(AWARD_POINTS, me);
     }
   }
-  // Starting to touch any other award costs points
+  // Starting to touch any other award costs points, or with perma death
+  // switched on, ends the game
+  const bumped = touchingNow.some((now, i) => now && !wasTouching[i] && i !== goldIndex);
+  if (bumped && permadeath.checked) {
+    gameOver();
+    return;
+  }
   touchingNow.forEach((now, i) => {
     if (now && !wasTouching[i] && i !== goldIndex) addPoints(-PENALTY_POINTS, me);
   });
@@ -472,6 +478,45 @@ function draw() {
   drawPopups();
 }
 
+// ---------------------------------------------------------------------------
+// Perma death: a black "GAME OVER" screen for a few seconds, then a new game
+// ---------------------------------------------------------------------------
+const GAME_OVER_SECONDS = 3;
+const permadeath = document.getElementById("permadeath");
+let gameOverTimer = 0; // > 0 while the game over screen is showing
+
+try {
+  permadeath.checked = localStorage.getItem("permadeath") === "1";
+} catch (e) { /* storage blocked: starts unticked */ }
+permadeath.addEventListener("change", () => {
+  try { localStorage.setItem("permadeath", permadeath.checked ? "1" : "0"); } catch (e) { /* ignore */ }
+  permadeath.blur();
+});
+
+function gameOver() {
+  gameOverTimer = GAME_OVER_SECONDS;
+  stopSound();
+  uploadRecords(); // don't make a new record wait
+}
+
+function drawGameOver() {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+  const centerX = arena.x + arena.width / 2;
+  const centerY = arena.y + arena.height / 2;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ff4040";
+  ctx.font = `bold ${Math.round(Math.min(arena.width / 7, 56))}px 'Courier New', monospace`;
+  ctx.fillText("GAME OVER", centerX, centerY - 20);
+  ctx.fillStyle = GOLD;
+  ctx.font = "bold 18px 'Courier New', monospace";
+  ctx.fillText("Points: " + score, centerX, centerY + 30);
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px 'Courier New', monospace";
+  ctx.fillText("Restarting in " + Math.ceil(gameOverTimer) + "...", centerX, centerY + 60);
+}
+
 // The game loop: runs once per screen refresh (usually 60 times a second)
 let lastTime = performance.now();
 function loop(now) {
@@ -479,10 +524,17 @@ function loop(now) {
   const seconds = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
 
-  updatePlayer(seconds);
-  updateAwards(seconds);
-  updateScore(seconds);
-  draw();
+  if (gameOverTimer > 0) {
+    // Everything stands still while the game over screen shows
+    gameOverTimer -= seconds;
+    if (gameOverTimer <= 0) restart();
+    else drawGameOver();
+  } else {
+    updatePlayer(seconds);
+    updateAwards(seconds);
+    updateScore(seconds);
+    draw();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -603,6 +655,7 @@ function showDifficulty() {
 }
 
 function restart() {
+  gameOverTimer = 0;
   score = 0;
   scoreText.textContent = "Points: 0";
   player.x = 0.5;
@@ -676,7 +729,7 @@ function releaseStick() {
 
 window.addEventListener("pointerdown", (event) => {
   if (!isTouch || stick.active) return; // one finger steers at a time
-  if (event.target.closest("button")) return; // let buttons be buttons
+  if (event.target.closest("#controls")) return; // let buttons be buttons
   // Browsers "lock" a touch to the element it started on; undo that so we
   // keep getting moves wherever the finger goes
   if (event.target.hasPointerCapture && event.target.hasPointerCapture(event.pointerId)) {

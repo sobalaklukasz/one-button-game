@@ -33,7 +33,11 @@
 
   <!-- Restart and difficulty (choosing a difficulty also restarts) -->
   <div id="controls">
-    <button id="restart">↻ Restart</button>
+    <div id="controls-row">
+      <button id="restart">↻ Restart</button>
+      <!-- Perma death: bumping a non-gold award ends the game instead of costing points -->
+      <label id="permadeath-toggle"><input type="checkbox" id="permadeath"><span>Perma<br>death</span></label>
+    </div>
     <div id="difficulty">
       <button data-level="easy">Easy</button>
       <button data-level="normal">Normal</button>
