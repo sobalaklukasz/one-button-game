@@ -21,7 +21,7 @@ function win() {
 }
 
 function reset() {
-  message.textContent = "Press the button to win";
+  message.textContent = "Press the button to win!";
   document.body.classList.remove("won");
   winButton.hidden = false;
   resetButton.hidden = true;
