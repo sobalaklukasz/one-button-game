@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>One Button Game</title>
+  <title>Auuuuu</title>
 
   <!-- Lets phones run the game full screen (no browser bars) when added to the home screen -->
   <link rel="manifest" href="manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="One Button Game">
+  <meta name="apple-mobile-web-app-title" content="Auuuuu">
   <meta name="theme-color" content="#000000">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="icon" type="image/png" href="icon-192.png">
@@ -20,7 +20,7 @@
 </head>
 <body>
   <header id="header">
-    <h1>One Button Game</h1>
+    <h1>Auuuuu</h1>
     <!-- Filled in automatically when deploying (see .github/workflows/deploy.yml) -->
     <small id="version">dev</small>
     <div id="score">Points: 0</div>
@@ -28,13 +28,8 @@
 
   <canvas id="game"></canvas>
 
-  <!-- On-screen arrows, only shown on touch screens -->
-  <div id="dpad">
-    <button class="up" data-key="ArrowUp" aria-label="Up">▲</button>
-    <button class="left" data-key="ArrowLeft" aria-label="Left">◀</button>
-    <button class="right" data-key="ArrowRight" aria-label="Right">▶</button>
-    <button class="down" data-key="ArrowDown" aria-label="Down">▼</button>
-  </div>
+  <!-- On-screen joystick, only shown on touch screens -->
+  <div id="joystick"><div id="knob"></div></div>
 
   <script src="game.js?v=dev"></script>
 </body>

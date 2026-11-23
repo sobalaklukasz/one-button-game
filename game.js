@@ -7,7 +7,7 @@ const PLAYER_SIZE = 0.15;  // player is 15% of the arena's shorter side (height)
 const PLAYER_SPEED = 0.5;  // arena's shorter side per second
 
 const GOLD = "#ffd700";
-const ARENA_FILL = "#555";
+const ARENA_FILL = "#3a3a3a";
 
 // Player position as a fraction (0..1) of the space it can move in.
 // Storing it this way keeps the player in the same relative spot after a resize.
@@ -50,12 +50,17 @@ function resize() {
   canvas.style.height = window.innerHeight + "px";
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
-  // The arena must fit below the title and, on touch screens, above the arrows
+  // The arena must fit below the title and, on touch screens, above the joystick
+  // (measured at its resting spot, even if a finger is currently moving it)
   const gap = 16;
   const top = document.getElementById("header").getBoundingClientRect().bottom + gap;
-  const bottom = isTouch
-    ? document.getElementById("dpad").getBoundingClientRect().top - gap
-    : window.innerHeight - gap;
+  let bottom = window.innerHeight - gap;
+  if (isTouch) {
+    const moved = joystick.style.cssText;
+    joystick.style.cssText = "";
+    bottom = joystick.getBoundingClientRect().top - gap;
+    joystick.style.cssText = moved;
+  }
 
   arena.width = window.innerWidth * ARENA_SIZE;
   arena.height = Math.min(window.innerHeight * ARENA_SIZE, bottom - top);
@@ -86,8 +91,15 @@ function updatePlayer(seconds) {
     dy *= Math.SQRT1_2;
   }
 
-  if (dx > 0) facingRight = true;
-  if (dx < 0) facingRight = false;
+  // The joystick, when held, overrides the keys. Pushing it only a little
+  // walks slowly; pushing it to the edge walks at full speed.
+  if (stick.active) {
+    dx = stick.x;
+    dy = stick.y;
+  }
+
+  if (dx > 0.1) facingRight = true;
+  if (dx < -0.1) facingRight = false;
 
   const speed = Math.min(arena.width, arena.height) * PLAYER_SPEED * seconds;
   const roomX = arena.width - playerW;
@@ -183,7 +195,7 @@ function updateAwards(seconds) {
   goldTimer -= seconds;
   if (goldTimer <= 0) pickNewGold();
 
-  const speedUp = Math.min(MAX_SPEED_UP, 1 + (score / 100) * SPEED_UP_PER_100);
+  const speedUp = Math.min(MAX_SPEED_UP, 1 + (Math.max(0, score) / 100) * SPEED_UP_PER_100);
   const step = Math.min(arena.width, arena.height) * AWARD_SPEED * speedUp * seconds;
   const boxes = awards.map(awardBox);
 
@@ -318,29 +330,50 @@ function stopSound() {
 // ---------------------------------------------------------------------------
 // Points: +100 when you start touching the golden award. While you keep
 // touching it the character stays transformed and the sound grows louder.
+// Bumping into any other award costs 200 points (points can go below 0).
 // ---------------------------------------------------------------------------
 const AWARD_POINTS = 100;
+const PENALTY_POINTS = 200;
 const POPUP_SECONDS = 1;   // how long a "+100" stays visible
 const POPUP_RISE = 40;     // how far (in pixels) it floats up while fading
 let score = 0;
 let touchingGold = false;
+let wasTouching = [];      // which awards the player touched last frame
 let lastGoldIndex = -1;
-const popups = []; // floating "+100" messages: { x, y, age }
+const popups = []; // floating "+100" / "-200" messages: { x, y, age, text, color }
 const scoreText = document.getElementById("score");
 
+function addPoints(amount, box) {
+  score += amount;
+  scoreText.textContent = "Points: " + score;
+  popups.push({
+    x: box.x + box.w / 2,
+    y: box.y,
+    age: 0,
+    text: (amount > 0 ? "+" : "") + amount,
+    color: amount > 0 ? GOLD : "#ff4040",
+  });
+}
+
 function updateScore(seconds) {
-  const gold = awards[goldIndex];
   const me = playerBox();
-  const touching = Boolean(gold && overlaps(me, awardBox(gold)));
-  // A new touch (or the gold just moved onto the award you're touching) scores
+  const touchingNow = awards.map((award) => overlaps(me, awardBox(award)));
+  const touching = Boolean(touchingNow[goldIndex]);
+
+  // A new touch of the gold one (or the gold just moved onto the award
+  // you're touching) scores
   if (touching && (!touchingGold || goldIndex !== lastGoldIndex)) {
-    score += AWARD_POINTS;
-    scoreText.textContent = "Points: " + score;
-    popups.push({ x: me.x + me.w / 2, y: me.y, age: 0 });
+    addPoints(AWARD_POINTS, me);
   }
+  // Starting to touch any other award costs points
+  touchingNow.forEach((now, i) => {
+    if (now && !wasTouching[i] && i !== goldIndex) addPoints(-PENALTY_POINTS, me);
+  });
+
   if (touching) startSound();
   else stopSound();
   touchingGold = touching;
+  wasTouching = touchingNow;
   lastGoldIndex = goldIndex;
 
   // Age the popups and drop the ones that have faded out
@@ -355,8 +388,8 @@ function drawPopups() {
   for (const popup of popups) {
     const progress = popup.age / POPUP_SECONDS; // 0 → 1
     ctx.globalAlpha = 1 - progress;
-    ctx.fillStyle = GOLD;
-    ctx.fillText("+" + AWARD_POINTS, popup.x, popup.y - 4 - progress * POPUP_RISE);
+    ctx.fillStyle = popup.color;
+    ctx.fillText(popup.text, popup.x, popup.y - 4 - progress * POPUP_RISE);
   }
   ctx.globalAlpha = 1;
 }
@@ -424,55 +457,79 @@ window.addEventListener("keyup", (event) => {
   keys[event.key] = false;
 });
 
-// On-screen arrows press the same "keys" as the keyboard.
-// An arrow counts as pressed only while a finger is on top of it, so sliding
-// off releases it, sliding onto another arrow switches direction, and a finger
-// that first touches elsewhere starts pressing once it slides onto an arrow.
-const dpad = document.getElementById("dpad");
-const dpadButtons = dpad.querySelectorAll("button");
-const fingers = new Map(); // finger id -> key under that finger (or null)
+// ---------------------------------------------------------------------------
+// Joystick (touch screens): put a finger down anywhere and the joystick jumps
+// under it; drag to walk in that direction. Lift the finger and it goes back
+// to its resting spot at the bottom.
+// ---------------------------------------------------------------------------
+const STICK_RADIUS = 50;   // how far (px) the knob can move from the center
+const STICK_DEADZONE = 0.15; // tiny movements near the center are ignored
+const joystick = document.getElementById("joystick");
+const knob = document.getElementById("knob");
+const stick = { active: false, pointerId: null, centerX: 0, centerY: 0, x: 0, y: 0 };
 
-function updateDpad() {
-  const held = new Set(fingers.values());
-  for (const button of dpadButtons) {
-    const key = button.dataset.key;
-    keys[key] = held.has(key);
-    button.classList.toggle("pressed", held.has(key));
+function moveStick(event) {
+  let dx = event.clientX - stick.centerX;
+  let dy = event.clientY - stick.centerY;
+  const distance = Math.hypot(dx, dy);
+  if (distance > STICK_RADIUS) {
+    dx = (dx / distance) * STICK_RADIUS;
+    dy = (dy / distance) * STICK_RADIUS;
+  }
+  knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  // Direction and strength, each -1..1
+  const strength = Math.min(distance, STICK_RADIUS) / STICK_RADIUS;
+  if (strength < STICK_DEADZONE) {
+    stick.x = 0;
+    stick.y = 0;
+  } else {
+    stick.x = dx / STICK_RADIUS;
+    stick.y = dy / STICK_RADIUS;
   }
 }
 
-function trackFinger(event) {
-  const under = document.elementFromPoint(event.clientX, event.clientY);
-  const button = under && under.closest("#dpad button");
-  fingers.set(event.pointerId, button ? button.dataset.key : null);
-  updateDpad();
+function releaseStick() {
+  stick.active = false;
+  stick.pointerId = null;
+  stick.x = 0;
+  stick.y = 0;
+  knob.style.transform = "";
+  joystick.style.cssText = ""; // back to the resting spot
+  joystick.classList.remove("active");
 }
 
-function releaseFinger(event) {
-  if (fingers.delete(event.pointerId)) updateDpad();
-}
-
-// Track every finger that touches the screen, wherever it lands
 window.addEventListener("pointerdown", (event) => {
-  if (!isTouch) return;
+  if (!isTouch || stick.active) return; // one finger steers at a time
   // Browsers "lock" a touch to the element it started on; undo that so we
-  // keep getting moves as the finger slides between elements
+  // keep getting moves wherever the finger goes
   if (event.target.hasPointerCapture && event.target.hasPointerCapture(event.pointerId)) {
     event.target.releasePointerCapture(event.pointerId);
   }
-  trackFinger(event);
+  const size = joystick.offsetWidth;
+  stick.active = true;
+  stick.pointerId = event.pointerId;
+  stick.centerX = event.clientX;
+  stick.centerY = event.clientY;
+  joystick.style.left = event.clientX - size / 2 + "px";
+  joystick.style.top = event.clientY - size / 2 + "px";
+  joystick.style.bottom = "auto";
+  joystick.style.marginLeft = "0";
+  joystick.classList.add("active");
+  moveStick(event);
 });
 window.addEventListener("pointermove", (event) => {
-  if (fingers.has(event.pointerId)) trackFinger(event);
+  if (stick.active && event.pointerId === stick.pointerId) moveStick(event);
 });
-window.addEventListener("pointerup", releaseFinger);
-window.addEventListener("pointercancel", releaseFinger);
+const endTouch = (event) => {
+  if (event.pointerId === stick.pointerId) releaseStick();
+};
+window.addEventListener("pointerup", endTouch);
+window.addEventListener("pointercancel", endTouch);
 
-// Release all keys if the window loses focus, so the player doesn't keep sliding
+// Let go of everything if the window loses focus, so the player doesn't keep walking
 window.addEventListener("blur", () => {
   for (const key in keys) keys[key] = false;
-  fingers.clear();
-  updateDpad();
+  releaseStick();
 });
 
 window.addEventListener("resize", resize);
