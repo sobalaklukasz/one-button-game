@@ -529,22 +529,41 @@ function gameOver() {
   uploadRecords(); // don't make a new record wait
 }
 
+const gameOverImage = loadImage("game-over.jpg");
+
+// Text with a black outline, so it stays readable on top of the picture
+function outlinedText(text, x, y, color) {
+  ctx.lineWidth = 5;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#000";
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
 function drawGameOver() {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+  // The picture, as big as fits inside the arena, centered
+  if (isReady(gameOverImage)) {
+    const fit = Math.min(arena.width / gameOverImage.naturalWidth, arena.height / gameOverImage.naturalHeight);
+    const w = gameOverImage.naturalWidth * fit;
+    const h = gameOverImage.naturalHeight * fit;
+    ctx.drawImage(gameOverImage, arena.x + (arena.width - w) / 2, arena.y + (arena.height - h) / 2, w, h);
+  }
+
+  // Text in the lower part, below the glowing eyes
   const centerX = arena.x + arena.width / 2;
-  const centerY = arena.y + arena.height / 2;
+  const textY = arena.y + arena.height * 0.78;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "#ff4040";
   ctx.font = `bold ${Math.round(Math.min(arena.width / 7, 56))}px 'Courier New', monospace`;
-  ctx.fillText("GAME OVER", centerX, centerY - 20);
-  ctx.fillStyle = GOLD;
+  outlinedText("GAME OVER", centerX, textY - 20, "#ff4040");
   ctx.font = "bold 18px 'Courier New', monospace";
-  ctx.fillText("Points: " + score, centerX, centerY + 30);
-  ctx.fillStyle = "#fff";
+  outlinedText("Points: " + score, centerX, textY + 30, GOLD);
   ctx.font = "14px 'Courier New', monospace";
-  ctx.fillText("Restarting in " + Math.ceil(gameOverTimer) + "...", centerX, centerY + 60);
+  outlinedText("Restarting in " + Math.ceil(gameOverTimer) + "...", centerX, textY + 60, "#fff");
 }
 
 // The game loop: runs once per screen refresh (usually 60 times a second)
