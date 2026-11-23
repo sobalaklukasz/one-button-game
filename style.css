@@ -73,6 +73,31 @@ body {
   font-weight: bold;
 }
 
+/* Your best + last score, top left */
+#personal {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(16px + env(safe-area-inset-left));
+  font-family: "Courier New", monospace;
+  color: #fff;
+  pointer-events: none;
+}
+
+#personal span {
+  display: block;
+}
+
+#personal-label,
+#personal-last {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+#personal-best {
+  font-size: 16px;
+  font-weight: bold;
+}
+
 /* Restart + difficulty buttons, bottom left */
 #controls {
   position: fixed;

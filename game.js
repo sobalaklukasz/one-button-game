@@ -529,6 +529,7 @@ let started = false;
 function setStarted(value) {
   started = value;
   permadeath.disabled = value;
+  if (value) gameKey = rankingKey();
 }
 
 function drawStartHint() {
@@ -546,6 +547,8 @@ function drawStartHint() {
 }
 
 function gameOver() {
+  rememberLastScore();
+  gameKey = null; // already remembered; the restart afterwards shouldn't again
   gameOverTimer = GAME_OVER_SECONDS;
   stopSound();
   uploadRecords(); // don't make a new record wait
@@ -655,7 +658,38 @@ function saveRecordsLocally() {
   try { localStorage.setItem("records", JSON.stringify(records)); } catch (e) { /* ignore */ }
 }
 
+// Personal stats, kept only on this device: your best and your last game's
+// score, for each ranking (difficulty, with or without perma death)
+const personal = { best: {}, last: {} };
+const personalBest = document.getElementById("personal-best");
+const personalLast = document.getElementById("personal-last");
+let gameKey = null; // the ranking the current game counts for (set when it starts)
+
+try {
+  const saved = JSON.parse(localStorage.getItem("personal"));
+  if (saved) Object.assign(personal, saved);
+} catch (e) { /* nothing saved yet, or storage blocked */ }
+
+function savePersonal() {
+  try { localStorage.setItem("personal", JSON.stringify(personal)); } catch (e) { /* ignore */ }
+}
+
+function showPersonal() {
+  const key = rankingKey();
+  personalBest.textContent = personal.best[key] || 0;
+  personalLast.textContent = "Last: " + (key in personal.last ? personal.last[key] : "–");
+}
+
+// Remember the score of a game that's ending (game over, restart, leaving)
+function rememberLastScore() {
+  if (!gameKey) return; // no game was played since the last restart
+  personal.last[gameKey] = score;
+  savePersonal();
+  showPersonal();
+}
+
 function showRecord() {
+  showPersonal();
   const name = difficulty[0].toUpperCase() + difficulty.slice(1);
   recordLabel.textContent = (permadeath.checked ? "☠ " : "") + name + " record";
   recordValue.textContent = records[rankingKey()];
@@ -664,6 +698,11 @@ function showRecord() {
 // Called whenever the score changes
 function noteScore() {
   const key = rankingKey();
+  if (score > (personal.best[key] || 0)) {
+    personal.best[key] = score;
+    savePersonal();
+    showPersonal();
+  }
   if (score <= records[key]) return;
   records[key] = score;
   saveRecordsLocally();
@@ -726,6 +765,9 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden" && pendingUploads.size) uploadRecords(true);
 });
 
+// Closing or reloading the page ends the game too: remember its score
+window.addEventListener("pagehide", rememberLastScore);
+
 listenForRecords();
 
 // ---------------------------------------------------------------------------
@@ -741,6 +783,8 @@ function showDifficulty() {
 }
 
 function restart() {
+  rememberLastScore();
+  gameKey = null;
   cancelRestart();
   gameOverTimer = 0;
   setStarted(false); // wait for the first move again
