@@ -7,7 +7,7 @@ const PLAYER_SIZE = 0.15;  // player is 15% of the arena's shorter side (height)
 const PLAYER_SPEED = 0.5;  // arena's shorter side per second
 
 const GOLD = "#ffd700";
-const ARENA_FILL = "#777";
+const ARENA_FILL = "#555";
 
 // Player position as a fraction (0..1) of the space it can move in.
 // Storing it this way keeps the player in the same relative spot after a resize.
@@ -29,7 +29,7 @@ const isReady = (image) => image.complete && image.naturalWidth > 0;
 
 // The character picture. It faces left as drawn; we mirror it when walking right.
 const sprite = loadImage("player.png");
-// Shown for a moment after collecting a golden award
+// Shown while touching the golden award
 const transformSprite = loadImage("player-transform.png");
 // The transformed picture is drawn smaller in its source image, so it's scaled
 // up by this much to keep the body the same size as the normal character
@@ -119,7 +119,9 @@ function overlaps(a, b) {
 // One of them at a time has a gold outline; touching that one gives points.
 // ---------------------------------------------------------------------------
 const AWARD_COUNT = 5;
-const AWARD_SPEED = 0.2;       // arena's shorter side per second
+const AWARD_SPEED = 0.2;       // arena's shorter side per second, at 0 points
+const SPEED_UP_PER_100 = 0.1;  // +10% speed for every 100 points...
+const MAX_SPEED_UP = 3;        // ...up to 3 times as fast
 const GOLD_SECONDS = 5;        // how long one award stays golden
 const awardImage = loadImage("award.png");
 let awardW = 0;
@@ -172,6 +174,8 @@ function pickNewGold() {
 }
 
 function updateAwards(seconds) {
+  // Place the awards once there's room (the page may start out tiny or hidden)
+  if (awards.length === 0) spawnAwards();
   const roomX = arena.width - awardW;
   const roomY = arena.height - awardH;
   if (roomX <= 0 || roomY <= 0 || awards.length === 0) return;
@@ -179,7 +183,8 @@ function updateAwards(seconds) {
   goldTimer -= seconds;
   if (goldTimer <= 0) pickNewGold();
 
-  const step = Math.min(arena.width, arena.height) * AWARD_SPEED * seconds;
+  const speedUp = Math.min(MAX_SPEED_UP, 1 + (score / 100) * SPEED_UP_PER_100);
+  const step = Math.min(arena.width, arena.height) * AWARD_SPEED * speedUp * seconds;
   const boxes = awards.map(awardBox);
 
   // Walk, now and then turning in a new random direction
@@ -265,30 +270,78 @@ function drawAwards() {
 }
 
 // ---------------------------------------------------------------------------
-// Points: +100 for touching the golden award. The character transforms for a
-// moment and the gold moves on to another award.
+// Sound: plays on a loop while touching the golden award, getting louder the
+// longer the touch lasts. Uses Web Audio, because iPhones ignore the volume
+// setting of plain <audio> elements.
+// ---------------------------------------------------------------------------
+const SOUND_START_VOLUME = 0.15;
+const SOUND_MAX_VOLUME = 1;
+const SOUND_RAMP_SECONDS = 4; // time to go from start to max volume
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+const audio = AudioContextClass ? new AudioContextClass() : null;
+let touchSound = null;  // the decoded sound
+let playing = null;     // { source, gain } while the sound is playing
+
+if (audio) {
+  fetch("touch.mp3")
+    .then((response) => response.arrayBuffer())
+    .then((data) => audio.decodeAudioData(data))
+    .then((buffer) => { touchSound = buffer; })
+    .catch(() => {}); // no sound is better than a broken game
+  // Browsers only allow sound after the player has pressed something
+  const unlock = () => { if (audio.state === "suspended") audio.resume(); };
+  window.addEventListener("keydown", unlock);
+  window.addEventListener("pointerdown", unlock);
+}
+
+function startSound() {
+  if (!audio || !touchSound || playing) return;
+  const source = audio.createBufferSource();
+  source.buffer = touchSound;
+  source.loop = true;
+  const gain = audio.createGain();
+  const now = audio.currentTime;
+  gain.gain.value = SOUND_START_VOLUME;
+  gain.gain.setValueAtTime(SOUND_START_VOLUME, now);
+  gain.gain.linearRampToValueAtTime(SOUND_MAX_VOLUME, now + SOUND_RAMP_SECONDS);
+  source.connect(gain).connect(audio.destination);
+  source.start();
+  playing = { source, gain };
+}
+
+function stopSound() {
+  if (!playing) return;
+  playing.source.stop();
+  playing = null;
+}
+
+// ---------------------------------------------------------------------------
+// Points: +100 when you start touching the golden award. While you keep
+// touching it the character stays transformed and the sound grows louder.
 // ---------------------------------------------------------------------------
 const AWARD_POINTS = 100;
-const TRANSFORM_SECONDS = 1;
 const POPUP_SECONDS = 1;   // how long a "+100" stays visible
 const POPUP_RISE = 40;     // how far (in pixels) it floats up while fading
 let score = 0;
-let transformTimer = 0;
+let touchingGold = false;
+let lastGoldIndex = -1;
 const popups = []; // floating "+100" messages: { x, y, age }
 const scoreText = document.getElementById("score");
 
 function updateScore(seconds) {
-  transformTimer = Math.max(0, transformTimer - seconds);
-
   const gold = awards[goldIndex];
   const me = playerBox();
-  if (gold && overlaps(me, awardBox(gold))) {
+  const touching = Boolean(gold && overlaps(me, awardBox(gold)));
+  // A new touch (or the gold just moved onto the award you're touching) scores
+  if (touching && (!touchingGold || goldIndex !== lastGoldIndex)) {
     score += AWARD_POINTS;
     scoreText.textContent = "Points: " + score;
     popups.push({ x: me.x + me.w / 2, y: me.y, age: 0 });
-    transformTimer = TRANSFORM_SECONDS;
-    pickNewGold();
   }
+  if (touching) startSound();
+  else stopSound();
+  touchingGold = touching;
+  lastGoldIndex = goldIndex;
 
   // Age the popups and drop the ones that have faded out
   for (const popup of popups) popup.age += seconds;
@@ -310,7 +363,7 @@ function drawPopups() {
 
 function drawPlayer() {
   const box = playerBox();
-  const transformed = transformTimer > 0;
+  const transformed = touchingGold;
   const image = transformed ? transformSprite : sprite;
   if (!isReady(image)) return;
 
