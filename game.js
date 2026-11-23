@@ -309,16 +309,38 @@ const audio = AudioContextClass ? new AudioContextClass() : null;
 let touchSound = null;  // the decoded sound
 let playing = null;     // { source, gain } while the sound is playing
 
+// iPhones mute web page sound when the ring/silent switch is on silent.
+// "playback" tells iOS (17 and newer) this is game audio that should play anyway.
+if (navigator.audioSession) {
+  try { navigator.audioSession.type = "playback"; } catch (e) { /* older iOS */ }
+}
+
 if (audio) {
   fetch("touch.mp3")
     .then((response) => response.arrayBuffer())
-    .then((data) => audio.decodeAudioData(data))
+    // (callback form also works on older Safari versions)
+    .then((data) => new Promise((resolve, reject) => audio.decodeAudioData(data, resolve, reject)))
     .then((buffer) => { touchSound = buffer; })
     .catch(() => {}); // no sound is better than a broken game
-  // Browsers only allow sound after the player has pressed something
-  const unlock = () => { if (audio.state === "suspended") audio.resume(); };
-  window.addEventListener("keydown", unlock);
-  window.addEventListener("pointerdown", unlock);
+
+  // Browsers only allow sound after the player has really pressed something.
+  // On touch screens only the END of a touch counts (not the start), so listen
+  // to all of these. iPhones can also pause audio after switching apps
+  // ("interrupted"), so try again on every press, not just the first.
+  const unlock = () => {
+    if (audio.state !== "running") audio.resume().catch(() => {});
+    if (!unlock.primed) {
+      // Playing a tiny silent sound during the press makes iPhones fully unlock audio
+      const silent = audio.createBufferSource();
+      silent.buffer = audio.createBuffer(1, 1, 22050);
+      silent.connect(audio.destination);
+      silent.start();
+      unlock.primed = true;
+    }
+  };
+  for (const type of ["keydown", "pointerdown", "pointerup", "touchend", "click"]) {
+    window.addEventListener(type, unlock, true);
+  }
 }
 
 function startSound() {
