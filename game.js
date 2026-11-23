@@ -20,6 +20,9 @@ let playerH = 0;
 // The character picture. It faces left as drawn; we mirror it when walking right.
 const sprite = new Image();
 sprite.src = "player.png";
+// Shown instead while the character is touching a wall of the arena
+const wallSprite = new Image();
+wallSprite.src = "player-wall.png";
 let facingRight = false;
 
 // Phones and tablets get on-screen arrows (their main pointer is a finger)
@@ -95,15 +98,17 @@ function draw() {
   // Player
   const px = arena.x + player.x * (arena.width - playerW);
   const py = arena.y + player.y * (arena.height - playerH);
-  if (sprite.complete && sprite.naturalWidth) {
+  const touchingWall = player.x <= 0 || player.x >= 1 || player.y <= 0 || player.y >= 1;
+  const image = touchingWall ? wallSprite : sprite;
+  if (image.complete && image.naturalWidth) {
     ctx.save();
     if (facingRight) {
       // Mirror around the character's own center
       ctx.translate(px + playerW, py);
       ctx.scale(-1, 1);
-      ctx.drawImage(sprite, 0, 0, playerW, playerH);
+      ctx.drawImage(image, 0, 0, playerW, playerH);
     } else {
-      ctx.drawImage(sprite, px, py, playerW, playerH);
+      ctx.drawImage(image, px, py, playerW, playerH);
     }
     ctx.restore();
   }
