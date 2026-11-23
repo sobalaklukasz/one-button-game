@@ -340,11 +340,14 @@ function stopSound() {
 }
 
 // ---------------------------------------------------------------------------
-// Points: +100 when you start touching the golden award. While you keep
-// touching it the character stays transformed and the sound grows louder.
+// Points: +100 when you start touching the golden award, then another +100
+// every half second for as long as you keep touching it. Meanwhile the
+// character stays transformed and the sound grows louder.
 // Bumping into any other award costs 200 points (but never below 0).
 // ---------------------------------------------------------------------------
 const AWARD_POINTS = 100;
+const AWARD_REPEAT_SECONDS = 0.5; // how often points keep coming while touching
+let goldTouchTime = 0;            // time since the last points from the gold one
 const PENALTY_POINTS = 200;
 const POPUP_SECONDS = 1;   // how long a "+100" stays visible
 const POPUP_RISE = 40;     // how far (in pixels) it floats up while fading
@@ -378,6 +381,14 @@ function updateScore(seconds) {
   // you're touching) scores
   if (touching && (!touchingGold || goldIndex !== lastGoldIndex)) {
     addPoints(AWARD_POINTS, me);
+    goldTouchTime = 0;
+  } else if (touching) {
+    // Still touching: keep the money coming
+    goldTouchTime += seconds;
+    while (goldTouchTime >= AWARD_REPEAT_SECONDS) {
+      goldTouchTime -= AWARD_REPEAT_SECONDS;
+      addPoints(AWARD_POINTS, me);
+    }
   }
   // Starting to touch any other award costs points
   touchingNow.forEach((now, i) => {
