@@ -556,7 +556,7 @@ window.addEventListener("keyup", (event) => {
 // record if it's higher than the old one. Without a database URL the records
 // are kept on this device only.
 // ---------------------------------------------------------------------------
-const RECORDS_DB_URL = ""; // e.g. "https://auuuuu-12345-default-rtdb.europe-west1.firebasedatabase.app"
+const RECORDS_DB_URL = "https://auuuuu-83d66-default-rtdb.europe-west1.firebasedatabase.app";
 const records = { easy: 0, normal: 0, hard: 0 };
 const recordLabel = document.getElementById("record-label");
 const recordValue = document.getElementById("record-value");
