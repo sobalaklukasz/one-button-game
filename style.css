@@ -50,16 +50,51 @@ body {
   color: #ffd700; /* gold, like the arena border */
 }
 
-/* Joystick: rests at the bottom; while you hold a finger down it jumps to
-   where you touched (game.js sets its position) and the knob follows */
+/* Restart + difficulty buttons, bottom left */
+#controls {
+  position: fixed;
+  left: calc(16px + env(safe-area-inset-left));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+#difficulty {
+  display: flex;
+  gap: 6px;
+}
+
+#controls button {
+  font: bold 14px "Courier New", monospace;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 215, 0, 0.5);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+#controls button:active {
+  background: rgba(255, 215, 0, 0.3);
+}
+
+#difficulty button.selected {
+  color: #000;
+  background: #ffd700;
+  border-color: #ffd700;
+}
+
+/* Joystick: rests at the bottom right; while you hold a finger down it jumps
+   to where you touched (game.js sets its position) and the knob follows */
 #joystick {
   display: none;
   position: fixed;
-  left: 50%;
+  right: calc(16px + env(safe-area-inset-right));
   bottom: calc(16px + env(safe-area-inset-bottom));
   width: 130px;
   height: 130px;
-  margin-left: -65px;
   box-sizing: border-box;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);

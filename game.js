@@ -50,25 +50,26 @@ function resize() {
   canvas.style.height = window.innerHeight + "px";
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
-  // The arena must fit below the title and, on touch screens, above the joystick
-  // (measured at its resting spot, even if a finger is currently moving it)
+  // The arena must fit below the title and above the buttons and, on touch
+  // screens, the joystick (measured at its resting spot, even if a finger is
+  // currently moving it)
   const gap = 16;
   const top = document.getElementById("header").getBoundingClientRect().bottom + gap;
-  let bottom = window.innerHeight - gap;
+  let bottom = document.getElementById("controls").getBoundingClientRect().top - gap;
   if (isTouch) {
     const moved = joystick.style.cssText;
     joystick.style.cssText = "";
-    bottom = joystick.getBoundingClientRect().top - gap;
+    bottom = Math.min(bottom, joystick.getBoundingClientRect().top - gap);
     joystick.style.cssText = moved;
   }
 
   arena.width = window.innerWidth * ARENA_SIZE;
   arena.height = Math.min(window.innerHeight * ARENA_SIZE, bottom - top);
   arena.x = (window.innerWidth - arena.width) / 2;
-  // Centered on the screen, unless that would overlap the title
+  // Centered on the screen, unless that would overlap the title or buttons
   arena.y = isTouch
     ? top
-    : Math.max(top, (window.innerHeight - arena.height) / 2);
+    : Math.max(top, Math.min((window.innerHeight - arena.height) / 2, bottom - arena.height));
   playerH = Math.min(arena.width, arena.height) * PLAYER_SIZE;
   playerW = playerH * (306 / 558); // keep the picture's proportions
   awardH = playerH;
@@ -130,7 +131,15 @@ function overlaps(a, b) {
 // Awards: characters that wander around and bump into each other.
 // One of them at a time has a gold outline; touching that one gives points.
 // ---------------------------------------------------------------------------
-const AWARD_COUNT = 5;
+// How many awards each difficulty has. One is golden at a time, so harder
+// levels mean more non-golden ones to dodge.
+const DIFFICULTY_AWARDS = { easy: 4, normal: 6, hard: 9 };
+let difficulty = "normal";
+try {
+  // Remember the last chosen difficulty on this device
+  const saved = localStorage.getItem("difficulty");
+  if (saved in DIFFICULTY_AWARDS) difficulty = saved;
+} catch (e) { /* storage blocked: just use the default */ }
 const AWARD_SPEED = 0.2;       // arena's shorter side per second, at 0 points
 const SPEED_UP_PER_100 = 0.1;  // +10% speed for every 100 points...
 const MAX_SPEED_UP = 3;        // ...up to 3 times as fast
@@ -161,7 +170,7 @@ function awardBox(award) {
 function spawnAwards() {
   if (arena.width <= awardW || arena.height <= awardH) return;
   const taken = [playerBox()];
-  for (let i = 0; i < AWARD_COUNT; i++) {
+  for (let i = 0; i < DIFFICULTY_AWARDS[difficulty]; i++) {
     // Try random spots until one doesn't overlap anything already placed
     let award;
     for (let attempt = 0; attempt < 200; attempt++) {
@@ -458,9 +467,51 @@ window.addEventListener("keyup", (event) => {
 });
 
 // ---------------------------------------------------------------------------
-// Joystick (touch screens): put a finger down anywhere and the joystick jumps
-// under it; drag to walk in that direction. Lift the finger and it goes back
-// to its resting spot at the bottom.
+// Restart and difficulty buttons
+// ---------------------------------------------------------------------------
+const difficultyButtons = document.querySelectorAll("#difficulty button");
+
+function showDifficulty() {
+  for (const button of difficultyButtons) {
+    button.classList.toggle("selected", button.dataset.level === difficulty);
+  }
+}
+
+function restart() {
+  score = 0;
+  scoreText.textContent = "Points: 0";
+  player.x = 0.5;
+  player.y = 0.5;
+  facingRight = false;
+  popups.length = 0;
+  stopSound();
+  touchingGold = false;
+  wasTouching = [];
+  lastGoldIndex = -1;
+  awards.length = 0;
+  spawnAwards(); // fresh random spots (and the right number for the difficulty)
+}
+
+document.getElementById("restart").addEventListener("click", (event) => {
+  restart();
+  event.currentTarget.blur(); // so the keyboard doesn't keep "pressing" it
+});
+
+for (const button of difficultyButtons) {
+  button.addEventListener("click", () => {
+    difficulty = button.dataset.level;
+    try { localStorage.setItem("difficulty", difficulty); } catch (e) { /* ignore */ }
+    showDifficulty();
+    restart();
+    button.blur();
+  });
+}
+showDifficulty();
+
+// ---------------------------------------------------------------------------
+// Joystick (touch screens): put a finger down anywhere (except on a button)
+// and the joystick jumps under it; drag to walk in that direction. Lift the
+// finger and it goes back to its resting spot at the bottom right.
 // ---------------------------------------------------------------------------
 const STICK_RADIUS = 50;   // how far (px) the knob can move from the center
 const STICK_DEADZONE = 0.15; // tiny movements near the center are ignored
@@ -500,6 +551,7 @@ function releaseStick() {
 
 window.addEventListener("pointerdown", (event) => {
   if (!isTouch || stick.active) return; // one finger steers at a time
+  if (event.target.closest("button")) return; // let buttons be buttons
   // Browsers "lock" a touch to the element it started on; undo that so we
   // keep getting moves wherever the finger goes
   if (event.target.hasPointerCapture && event.target.hasPointerCapture(event.pointerId)) {
@@ -512,8 +564,8 @@ window.addEventListener("pointerdown", (event) => {
   stick.centerY = event.clientY;
   joystick.style.left = event.clientX - size / 2 + "px";
   joystick.style.top = event.clientY - size / 2 + "px";
+  joystick.style.right = "auto";
   joystick.style.bottom = "auto";
-  joystick.style.marginLeft = "0";
   joystick.classList.add("active");
   moveStick(event);
 });
