@@ -17,11 +17,37 @@ body {
   height: 100vh;
 }
 
+#header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* env(safe-area-inset-*) keeps things clear of the iPhone notch and home bar */
+  padding-top: calc(10px + env(safe-area-inset-top));
+  text-align: center;
+  color: #fff;
+  font-family: "Courier New", monospace;
+  pointer-events: none;
+}
+
+#header h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 2px;
+}
+
+#version {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
 #dpad {
   display: none;
   position: fixed;
   left: 50%;
-  bottom: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: 156px;
   height: 156px;

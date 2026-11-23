@@ -2,12 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Square Game</title>
-  <!-- Bump ?v= after changing a file, so browsers download it instead of using an old saved copy -->
-  <link rel="stylesheet" href="style.css?v=4">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>One Button Game</title>
+
+  <!-- Lets phones run the game full screen (no browser bars) when added to the home screen -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="One Button Game">
+  <meta name="theme-color" content="#000000">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+
+  <!-- ?v=dev is replaced with the commit id when deploying, so browsers never use an old saved copy -->
+  <link rel="stylesheet" href="style.css?v=dev">
 </head>
 <body>
+  <header id="header">
+    <h1>One Button Game</h1>
+    <!-- Filled in automatically when deploying (see .github/workflows/deploy.yml) -->
+    <small id="version">dev</small>
+  </header>
+
   <canvas id="game"></canvas>
 
   <!-- On-screen arrows, only shown on touch screens -->
@@ -18,6 +35,6 @@
     <button class="down" data-key="ArrowDown" aria-label="Down">▼</button>
   </div>
 
-  <script src="game.js?v=4"></script>
+  <script src="game.js?v=dev"></script>
 </body>
 </html>

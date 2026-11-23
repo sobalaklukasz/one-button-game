@@ -30,17 +30,20 @@ function resize() {
   canvas.style.height = window.innerHeight + "px";
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
-  arena.width = window.innerWidth * ARENA_SIZE;
-  arena.height = window.innerHeight * ARENA_SIZE;
-  arena.x = (window.innerWidth - arena.width) / 2;
-  arena.y = (window.innerHeight - arena.height) / 2;
+  // The arena must fit below the title and, on touch screens, above the arrows
+  const gap = 16;
+  const top = document.getElementById("header").getBoundingClientRect().bottom + gap;
+  const bottom = isTouch
+    ? document.getElementById("dpad").getBoundingClientRect().top - gap
+    : window.innerHeight - gap;
 
-  // On touch screens, move the arena up and make sure it ends above the arrows
-  if (isTouch) {
-    const dpadTop = document.getElementById("dpad").getBoundingClientRect().top;
-    arena.y = window.innerHeight * 0.04;
-    arena.height = Math.min(arena.height, dpadTop - 16 - arena.y);
-  }
+  arena.width = window.innerWidth * ARENA_SIZE;
+  arena.height = Math.min(window.innerHeight * ARENA_SIZE, bottom - top);
+  arena.x = (window.innerWidth - arena.width) / 2;
+  // Centered on the screen, unless that would overlap the title
+  arena.y = isTouch
+    ? top
+    : Math.max(top, (window.innerHeight - arena.height) / 2);
   playerPx = Math.min(arena.width, arena.height) * PLAYER_SIZE;
 }
 
