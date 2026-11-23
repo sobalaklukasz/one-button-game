@@ -144,6 +144,7 @@ const AWARD_SPEED = 0.2;       // arena's shorter side per second, at 0 points
 const SPEED_UP_PER_100 = 0.1;  // +10% speed for every 100 points...
 const MAX_SPEED_UP = 3;        // ...up to 3 times as fast
 const GOLD_SECONDS = 5;        // how long one award stays golden
+const BLINK_SECONDS = 1;       // the outline blinks during the last second
 const awardImage = loadImage("award.png");
 let awardW = 0;
 let awardH = 0;
@@ -279,7 +280,9 @@ function drawAwards() {
   if (!isReady(awardImage)) return;
   awards.forEach((award, i) => {
     const box = awardBox(award);
-    if (i === goldIndex && goldSilhouette) {
+    // In its last second the outline blinks quickly (5 times a second)
+    const blinkOff = goldTimer < BLINK_SECONDS && Math.floor(goldTimer * 10) % 2 === 1;
+    if (i === goldIndex && goldSilhouette && !blinkOff) {
       // Outline: the gold shape drawn slightly shifted all around, then the award on top
       const t = 3;
       for (const [ox, oy] of [[-t, 0], [t, 0], [0, -t], [0, t], [-t, -t], [t, -t], [-t, t], [t, t]]) {
@@ -427,12 +430,26 @@ function drawPlayer() {
   ctx.restore();
 }
 
+// The floor picture, repeated like tiles to cover the whole arena
+const FLOOR_TILE_SIZE = 1.2; // one tile is 1.2 × the arena's shorter side wide
+const floorImage = loadImage("money.jpg");
+let floorPattern = null;
+
+function floorFill() {
+  if (!isReady(floorImage)) return ARENA_FILL;
+  if (!floorPattern) floorPattern = ctx.createPattern(floorImage, "repeat");
+  // Scale the tiles with the arena and start them at its top-left corner
+  const scale = (Math.min(arena.width, arena.height) * FLOOR_TILE_SIZE) / floorImage.naturalWidth;
+  floorPattern.setTransform(new DOMMatrix().translateSelf(arena.x, arena.y).scaleSelf(scale));
+  return floorPattern;
+}
+
 function draw() {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-  // Arena: grey floor with a gold border
-  ctx.fillStyle = ARENA_FILL;
+  // Arena: money floor (grey until the picture loads) with a gold border
+  ctx.fillStyle = floorFill();
   ctx.fillRect(arena.x, arena.y, arena.width, arena.height);
   ctx.strokeStyle = GOLD;
   ctx.lineWidth = 2;
