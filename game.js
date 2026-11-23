@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 // Sizes are relative to the screen, so everything scales when the window resizes
 const ARENA_SIZE = 0.75;   // arena takes 3/4 of the screen width and height
-const PLAYER_SIZE = 0.04;  // player is 4% of the arena's shorter side
+const PLAYER_SIZE = 0.15;  // player is 15% of the arena's shorter side (height)
 const PLAYER_SPEED = 0.5;  // arena's shorter side per second
 
 // Player position as a fraction (0..1) of the space it can move in.
@@ -14,7 +14,13 @@ const player = { x: 0.5, y: 0.5 };
 const keys = {};
 
 let arena = { x: 0, y: 0, width: 0, height: 0 };
-let playerPx = 0;
+let playerW = 0;
+let playerH = 0;
+
+// The character picture. It faces left as drawn; we mirror it when walking right.
+const sprite = new Image();
+sprite.src = "player.png";
+let facingRight = false;
 
 // Phones and tablets get on-screen arrows (their main pointer is a finger)
 const isTouch = window.matchMedia("(pointer: coarse)").matches;
@@ -44,7 +50,8 @@ function resize() {
   arena.y = isTouch
     ? top
     : Math.max(top, (window.innerHeight - arena.height) / 2);
-  playerPx = Math.min(arena.width, arena.height) * PLAYER_SIZE;
+  playerH = Math.min(arena.width, arena.height) * PLAYER_SIZE;
+  playerW = playerH * (306 / 558); // keep the picture's proportions
 }
 
 function update(seconds) {
@@ -61,9 +68,12 @@ function update(seconds) {
     dy *= Math.SQRT1_2;
   }
 
+  if (dx > 0) facingRight = true;
+  if (dx < 0) facingRight = false;
+
   const speed = Math.min(arena.width, arena.height) * PLAYER_SPEED * seconds;
-  const roomX = arena.width - playerPx;
-  const roomY = arena.height - playerPx;
+  const roomX = arena.width - playerW;
+  const roomY = arena.height - playerH;
 
   // Window too small (e.g. minimized): skip, or the math below divides by zero
   if (roomX <= 0 || roomY <= 0) return;
@@ -83,10 +93,20 @@ function draw() {
   ctx.strokeRect(arena.x, arena.y, arena.width, arena.height);
 
   // Player
-  const px = arena.x + player.x * (arena.width - playerPx);
-  const py = arena.y + player.y * (arena.height - playerPx);
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(px, py, playerPx, playerPx);
+  const px = arena.x + player.x * (arena.width - playerW);
+  const py = arena.y + player.y * (arena.height - playerH);
+  if (sprite.complete && sprite.naturalWidth) {
+    ctx.save();
+    if (facingRight) {
+      // Mirror around the character's own center
+      ctx.translate(px + playerW, py);
+      ctx.scale(-1, 1);
+      ctx.drawImage(sprite, 0, 0, playerW, playerH);
+    } else {
+      ctx.drawImage(sprite, px, py, playerW, playerH);
+    }
+    ctx.restore();
+  }
 }
 
 // The game loop: runs once per screen refresh (usually 60 times a second)
