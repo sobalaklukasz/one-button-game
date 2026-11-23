@@ -114,7 +114,8 @@ window.addEventListener("keyup", (event) => {
 
 // On-screen arrows press the same "keys" as the keyboard.
 // An arrow counts as pressed only while a finger is on top of it, so sliding
-// off releases it and sliding onto another arrow switches direction.
+// off releases it, sliding onto another arrow switches direction, and a finger
+// that first touches elsewhere starts pressing once it slides onto an arrow.
 const dpad = document.getElementById("dpad");
 const dpadButtons = dpad.querySelectorAll("button");
 const fingers = new Map(); // finger id -> key under that finger (or null)
@@ -139,10 +140,12 @@ function releaseFinger(event) {
   if (fingers.delete(event.pointerId)) updateDpad();
 }
 
-dpad.addEventListener("pointerdown", (event) => {
+// Track every finger that touches the screen, wherever it lands
+window.addEventListener("pointerdown", (event) => {
+  if (!isTouch) return;
   // Browsers "lock" a touch to the element it started on; undo that so we
-  // keep getting moves after the finger slides off the button
-  if (event.target.hasPointerCapture(event.pointerId)) {
+  // keep getting moves as the finger slides between elements
+  if (event.target.hasPointerCapture && event.target.hasPointerCapture(event.pointerId)) {
     event.target.releasePointerCapture(event.pointerId);
   }
   trackFinger(event);
