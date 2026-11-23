@@ -86,6 +86,55 @@ function update(seconds) {
   player.y = Math.min(1, Math.max(0, player.y + (dy * speed) / roomY));
 }
 
+// Points: +100 each time the character bumps into a wall.
+// Staying against the wall doesn't add more; you have to leave and come back.
+const WALL_POINTS = 100;
+const POPUP_SECONDS = 1;   // how long a "+100" stays visible
+const POPUP_RISE = 40;     // how far (in pixels) it floats up while fading
+let score = 0;
+let wasTouchingWall = false;
+const popups = []; // floating "+100" messages: { x, y, age }
+const scoreText = document.getElementById("score");
+
+function isTouchingWall() {
+  return player.x <= 0 || player.x >= 1 || player.y <= 0 || player.y >= 1;
+}
+
+function playerPosition() {
+  return {
+    x: arena.x + player.x * (arena.width - playerW),
+    y: arena.y + player.y * (arena.height - playerH),
+  };
+}
+
+function updateScore(seconds) {
+  const touching = isTouchingWall();
+  if (touching && !wasTouchingWall) {
+    score += WALL_POINTS;
+    scoreText.textContent = "Points: " + score;
+    const pos = playerPosition();
+    popups.push({ x: pos.x + playerW / 2, y: pos.y, age: 0 });
+  }
+  wasTouchingWall = touching;
+
+  // Age the popups and drop the ones that have faded out
+  for (const popup of popups) popup.age += seconds;
+  while (popups.length && popups[0].age >= POPUP_SECONDS) popups.shift();
+}
+
+function drawPopups() {
+  ctx.font = "bold 18px 'Courier New', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  for (const popup of popups) {
+    const progress = popup.age / POPUP_SECONDS; // 0 → 1
+    ctx.globalAlpha = 1 - progress;
+    ctx.fillStyle = "#ffd700";
+    ctx.fillText("+" + WALL_POINTS, popup.x, popup.y - 4 - progress * POPUP_RISE);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function draw() {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
@@ -96,10 +145,8 @@ function draw() {
   ctx.strokeRect(arena.x, arena.y, arena.width, arena.height);
 
   // Player
-  const px = arena.x + player.x * (arena.width - playerW);
-  const py = arena.y + player.y * (arena.height - playerH);
-  const touchingWall = player.x <= 0 || player.x >= 1 || player.y <= 0 || player.y >= 1;
-  const image = touchingWall ? wallSprite : sprite;
+  const { x: px, y: py } = playerPosition();
+  const image = isTouchingWall() ? wallSprite : sprite;
   if (image.complete && image.naturalWidth) {
     ctx.save();
     if (facingRight) {
@@ -112,6 +159,8 @@ function draw() {
     }
     ctx.restore();
   }
+
+  drawPopups();
 }
 
 // The game loop: runs once per screen refresh (usually 60 times a second)
@@ -122,6 +171,7 @@ function loop(now) {
   lastTime = now;
 
   update(seconds);
+  updateScore(seconds);
   draw();
   requestAnimationFrame(loop);
 }

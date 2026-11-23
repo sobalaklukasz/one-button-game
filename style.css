@@ -43,6 +43,12 @@ body {
   opacity: 0.6;
 }
 
+#score {
+  margin-top: 6px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
 #dpad {
   display: none;
   position: fixed;
