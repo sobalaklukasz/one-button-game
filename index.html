@@ -2,17 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>One Button Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Square Game</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="game">
-    <h1 id="message">Press the button to win</h1>
-    <button id="win-button" type="button">PRESS ME</button>
-    <button id="reset-button" type="button" hidden>Play again</button>
-    <p class="stats">Wins: <span id="wins">0</span></p>
-  </main>
+  <canvas id="game"></canvas>
+
+  <!-- On-screen arrows, only shown on touch screens -->
+  <div id="dpad">
+    <button class="up" data-key="ArrowUp" aria-label="Up">▲</button>
+    <button class="left" data-key="ArrowLeft" aria-label="Left">◀</button>
+    <button class="right" data-key="ArrowRight" aria-label="Right">▶</button>
+    <button class="down" data-key="ArrowDown" aria-label="Down">▼</button>
+  </div>
 
   <script src="game.js"></script>
 </body>
