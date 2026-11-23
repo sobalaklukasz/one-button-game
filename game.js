@@ -392,9 +392,10 @@ function updateScore(seconds) {
     }
   }
   // Starting to touch any other award costs points, or with perma death
-  // switched on, ends the game
+  // switched on, ends the game (but not while you have 0 points: there's
+  // nothing to lose yet)
   const bumped = touchingNow.some((now, i) => now && !wasTouching[i] && i !== goldIndex);
-  if (bumped && permadeath.checked) {
+  if (bumped && permadeath.checked && score > 0) {
     gameOver();
     return;
   }
