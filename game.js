@@ -363,6 +363,7 @@ function addPoints(amount, box) {
   if (amount === 0) return;
   score += amount;
   scoreText.textContent = "Points: " + score;
+  noteScore();
   popups.push({
     x: box.x + box.w / 2,
     y: box.y,
@@ -497,6 +498,99 @@ window.addEventListener("keyup", (event) => {
 });
 
 // ---------------------------------------------------------------------------
+// Records: the best score ever for each difficulty, shared by everyone who
+// plays. Stored in a Firebase Realtime Database; its rules only accept a new
+// record if it's higher than the old one. Without a database URL the records
+// are kept on this device only.
+// ---------------------------------------------------------------------------
+const RECORDS_DB_URL = ""; // e.g. "https://auuuuu-12345-default-rtdb.europe-west1.firebasedatabase.app"
+const records = { easy: 0, normal: 0, hard: 0 };
+const recordLabel = document.getElementById("record-label");
+const recordValue = document.getElementById("record-value");
+const pendingUploads = new Set(); // difficulties with a new record to send
+let uploadTimer = null;
+
+try {
+  Object.assign(records, JSON.parse(localStorage.getItem("records")) || {});
+} catch (e) { /* no saved records yet, or storage blocked */ }
+
+function saveRecordsLocally() {
+  try { localStorage.setItem("records", JSON.stringify(records)); } catch (e) { /* ignore */ }
+}
+
+function showRecord() {
+  const name = difficulty[0].toUpperCase() + difficulty.slice(1);
+  recordLabel.textContent = name + " record";
+  recordValue.textContent = records[difficulty];
+}
+
+// Called whenever the score changes
+function noteScore() {
+  if (score <= records[difficulty]) return;
+  records[difficulty] = score;
+  saveRecordsLocally();
+  showRecord();
+  // Send it, but at most about once a second while points keep coming
+  pendingUploads.add(difficulty);
+  if (!uploadTimer) uploadTimer = setTimeout(uploadRecords, 1000);
+}
+
+function uploadRecords(keepalive = false) {
+  clearTimeout(uploadTimer);
+  uploadTimer = null;
+  if (!RECORDS_DB_URL) return pendingUploads.clear();
+  for (const level of pendingUploads) {
+    fetch(`${RECORDS_DB_URL}/records/${level}.json`, {
+      method: "PUT",
+      body: JSON.stringify(records[level]),
+      keepalive, // lets the last upload finish even if the page is closing
+    }).catch(() => {}); // offline: the next record will try again
+  }
+  pendingUploads.clear();
+}
+
+// Take the shared records, keeping our own if ours is higher (and sending it)
+function mergeRemoteRecords(remote) {
+  for (const level in records) {
+    const theirs = Number(remote && remote[level]) || 0;
+    if (theirs > records[level]) records[level] = theirs;
+    else if (records[level] > theirs) pendingUploads.add(level);
+  }
+  saveRecordsLocally();
+  showRecord();
+  if (pendingUploads.size) uploadRecords();
+}
+
+function listenForRecords() {
+  if (!RECORDS_DB_URL) return;
+  const url = `${RECORDS_DB_URL}/records.json`;
+  fetch(url).then((r) => r.json()).then(mergeRemoteRecords).catch(() => {});
+  if (!window.EventSource) {
+    setInterval(() => fetch(url).then((r) => r.json()).then(mergeRemoteRecords).catch(() => {}), 15000);
+    return;
+  }
+  // Live updates: Firebase pushes every change as it happens
+  const stream = new EventSource(url);
+  const onChange = (event) => {
+    const { path, data } = JSON.parse(event.data);
+    if (path === "/") mergeRemoteRecords(data);
+    else mergeRemoteRecords({ ...records, [path.slice(1)]: data });
+  };
+  stream.addEventListener("put", onChange);
+  stream.addEventListener("patch", (event) => {
+    const { data } = JSON.parse(event.data);
+    mergeRemoteRecords({ ...records, ...data });
+  });
+}
+
+// Send any waiting record when the player leaves or switches apps
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && pendingUploads.size) uploadRecords(true);
+});
+
+listenForRecords();
+
+// ---------------------------------------------------------------------------
 // Restart and difficulty buttons
 // ---------------------------------------------------------------------------
 const difficultyButtons = document.querySelectorAll("#difficulty button");
@@ -505,6 +599,7 @@ function showDifficulty() {
   for (const button of difficultyButtons) {
     button.classList.toggle("selected", button.dataset.level === difficulty);
   }
+  showRecord();
 }
 
 function restart() {
