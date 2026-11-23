@@ -25,15 +25,22 @@ function resize() {
   const scale = window.devicePixelRatio || 1;
   canvas.width = window.innerWidth * scale;
   canvas.height = window.innerHeight * scale;
+  // Size the canvas to the visible area (on phones "100vh" can reach behind the browser bars)
+  canvas.style.width = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
   arena.width = window.innerWidth * ARENA_SIZE;
   arena.height = window.innerHeight * ARENA_SIZE;
   arena.x = (window.innerWidth - arena.width) / 2;
-  // On touch screens, move the arena up to leave room for the arrows below it
-  arena.y = isTouch
-    ? window.innerHeight * 0.04
-    : (window.innerHeight - arena.height) / 2;
+  arena.y = (window.innerHeight - arena.height) / 2;
+
+  // On touch screens, move the arena up and make sure it ends above the arrows
+  if (isTouch) {
+    const dpadTop = document.getElementById("dpad").getBoundingClientRect().top;
+    arena.y = window.innerHeight * 0.04;
+    arena.height = Math.min(arena.height, dpadTop - 16 - arena.y);
+  }
   playerPx = Math.min(arena.width, arena.height) * PLAYER_SIZE;
 }
 
