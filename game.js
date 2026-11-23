@@ -109,27 +109,52 @@ window.addEventListener("keyup", (event) => {
   keys[event.key] = false;
 });
 
-// On-screen arrows press the same "keys" as the keyboard
-for (const button of document.querySelectorAll("#dpad button")) {
-  const key = button.dataset.key;
-  const press = (event) => {
-    keys[key] = true;
-    button.classList.add("pressed");
-    button.setPointerCapture(event.pointerId);
-  };
-  const release = () => {
-    keys[key] = false;
-    button.classList.remove("pressed");
-  };
-  button.addEventListener("pointerdown", press);
-  button.addEventListener("pointerup", release);
-  button.addEventListener("pointercancel", release);
-  button.addEventListener("lostpointercapture", release);
+// On-screen arrows press the same "keys" as the keyboard.
+// An arrow counts as pressed only while a finger is on top of it, so sliding
+// off releases it and sliding onto another arrow switches direction.
+const dpad = document.getElementById("dpad");
+const dpadButtons = dpad.querySelectorAll("button");
+const fingers = new Map(); // finger id -> key under that finger (or null)
+
+function updateDpad() {
+  const held = new Set(fingers.values());
+  for (const button of dpadButtons) {
+    const key = button.dataset.key;
+    keys[key] = held.has(key);
+    button.classList.toggle("pressed", held.has(key));
+  }
 }
+
+function trackFinger(event) {
+  const under = document.elementFromPoint(event.clientX, event.clientY);
+  const button = under && under.closest("#dpad button");
+  fingers.set(event.pointerId, button ? button.dataset.key : null);
+  updateDpad();
+}
+
+function releaseFinger(event) {
+  if (fingers.delete(event.pointerId)) updateDpad();
+}
+
+dpad.addEventListener("pointerdown", (event) => {
+  // Browsers "lock" a touch to the element it started on; undo that so we
+  // keep getting moves after the finger slides off the button
+  if (event.target.hasPointerCapture(event.pointerId)) {
+    event.target.releasePointerCapture(event.pointerId);
+  }
+  trackFinger(event);
+});
+window.addEventListener("pointermove", (event) => {
+  if (fingers.has(event.pointerId)) trackFinger(event);
+});
+window.addEventListener("pointerup", releaseFinger);
+window.addEventListener("pointercancel", releaseFinger);
 
 // Release all keys if the window loses focus, so the player doesn't keep sliding
 window.addEventListener("blur", () => {
   for (const key in keys) keys[key] = false;
+  fingers.clear();
+  updateDpad();
 });
 
 window.addEventListener("resize", resize);
