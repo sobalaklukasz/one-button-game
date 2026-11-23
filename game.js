@@ -204,7 +204,7 @@ function updateAwards(seconds) {
   goldTimer -= seconds;
   if (goldTimer <= 0) pickNewGold();
 
-  const speedUp = Math.min(MAX_SPEED_UP, 1 + (Math.max(0, score) / 100) * SPEED_UP_PER_100);
+  const speedUp = Math.min(MAX_SPEED_UP, 1 + (score / 100) * SPEED_UP_PER_100);
   const step = Math.min(arena.width, arena.height) * AWARD_SPEED * speedUp * seconds;
   const boxes = awards.map(awardBox);
 
@@ -295,7 +295,7 @@ function drawAwards() {
 // longer the touch lasts. Uses Web Audio, because iPhones ignore the volume
 // setting of plain <audio> elements.
 // ---------------------------------------------------------------------------
-const SOUND_START_VOLUME = 0.15;
+const SOUND_START_VOLUME = 0.6;
 const SOUND_MAX_VOLUME = 1;
 const SOUND_RAMP_SECONDS = 4; // time to go from start to max volume
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -339,7 +339,7 @@ function stopSound() {
 // ---------------------------------------------------------------------------
 // Points: +100 when you start touching the golden award. While you keep
 // touching it the character stays transformed and the sound grows louder.
-// Bumping into any other award costs 200 points (points can go below 0).
+// Bumping into any other award costs 200 points (but never below 0).
 // ---------------------------------------------------------------------------
 const AWARD_POINTS = 100;
 const PENALTY_POINTS = 200;
@@ -353,6 +353,8 @@ const popups = []; // floating "+100" / "-200" messages: { x, y, age, text, colo
 const scoreText = document.getElementById("score");
 
 function addPoints(amount, box) {
+  amount = Math.max(amount, -score); // can't lose more than you have
+  if (amount === 0) return;
   score += amount;
   scoreText.textContent = "Points: " + score;
   popups.push({
