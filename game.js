@@ -554,7 +554,11 @@ function loop(now) {
   const seconds = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
 
-  if (gameOverTimer > 0) {
+  if (confirmingRestart) {
+    // Paused: show the game as it was, with the question on top
+    draw();
+    drawRestartQuestion();
+  } else if (gameOverTimer > 0) {
     // Everything stands still while the game over screen shows
     gameOverTimer -= seconds;
     if (gameOverTimer <= 0) restart();
@@ -573,6 +577,7 @@ function loop(now) {
 
 window.addEventListener("keydown", (event) => {
   if (event.key.startsWith("Arrow")) {
+    cancelRestart(); // moving means "keep playing"
     keys[event.key] = true;
     event.preventDefault(); // stop arrows from scrolling the page
   }
@@ -695,6 +700,7 @@ function showDifficulty() {
 }
 
 function restart() {
+  cancelRestart();
   gameOverTimer = 0;
   setStarted(false); // wait for the first move again
   score = 0;
@@ -711,10 +717,46 @@ function restart() {
   spawnAwards(); // fresh random spots (and the right number for the difficulty)
 }
 
-document.getElementById("restart").addEventListener("click", (event) => {
-  restart();
-  event.currentTarget.blur(); // so the keyboard doesn't keep "pressing" it
+// Restart asks for a second press while a game is running, so a stray tap
+// doesn't throw your points away. The game is paused while it asks.
+const restartButton = document.getElementById("restart");
+let confirmingRestart = false;
+
+function cancelRestart() {
+  if (!confirmingRestart) return;
+  confirmingRestart = false;
+  restartButton.classList.remove("confirm");
+  lastTime = performance.now(); // don't count the paused time as a big jump
+}
+
+restartButton.addEventListener("click", () => {
+  const nothingToLose = !started || gameOverTimer > 0;
+  if (confirmingRestart || nothingToLose) {
+    restart();
+  } else {
+    confirmingRestart = true;
+    restartButton.classList.add("confirm");
+    stopSound();
+  }
+  restartButton.blur(); // so the keyboard doesn't keep "pressing" it
 });
+
+function drawRestartQuestion() {
+  // Dim the paused game and ask
+  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.fillRect(arena.x, arena.y, arena.width, arena.height);
+  const x = arena.x + arena.width / 2;
+  const y = arena.y + arena.height / 2;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = GOLD;
+  ctx.font = "bold 20px 'Courier New', monospace";
+  ctx.fillText("Press Restart", x, y - 28);
+  ctx.fillText("once more to restart", x, y);
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px 'Courier New', monospace";
+  ctx.fillText("Move to keep playing", x, y + 36);
+}
 
 for (const button of difficultyButtons) {
   button.addEventListener("click", () => {
@@ -769,8 +811,9 @@ function releaseStick() {
 }
 
 window.addEventListener("pointerdown", (event) => {
-  if (!isTouch || stick.active) return; // one finger steers at a time
   if (event.target.closest("#controls")) return; // let buttons be buttons
+  cancelRestart(); // touching the game area means "keep playing"
+  if (!isTouch || stick.active) return; // one finger steers at a time
   // Browsers "lock" a touch to the element it started on; undo that so we
   // keep getting moves wherever the finger goes
   if (event.target.hasPointerCapture && event.target.hasPointerCapture(event.pointerId)) {

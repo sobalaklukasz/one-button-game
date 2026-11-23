@@ -132,6 +132,18 @@ body {
   background: rgba(255, 215, 0, 0.3);
 }
 
+/* Restart waiting for its second press */
+#restart.confirm {
+  color: #000;
+  background: #ffd700;
+  border-color: #ffd700;
+  animation: pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  to { transform: scale(1.08); }
+}
+
 #difficulty button.selected {
   color: #000;
   background: #ffd700;
