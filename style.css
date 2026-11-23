@@ -104,6 +104,12 @@ body {
   cursor: pointer;
 }
 
+/* Locked while a game is running */
+#permadeath-toggle:has(#permadeath:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 #permadeath {
   width: 22px;
   height: 22px;

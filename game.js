@@ -99,6 +99,9 @@ function updatePlayer(seconds) {
     dy = stick.y;
   }
 
+  // The first move starts the game
+  if (!started && (dx !== 0 || dy !== 0)) setStarted(true);
+
   if (dx > 0.1) facingRight = true;
   if (dx < -0.1) facingRight = false;
 
@@ -492,7 +495,33 @@ try {
 permadeath.addEventListener("change", () => {
   try { localStorage.setItem("permadeath", permadeath.checked ? "1" : "0"); } catch (e) { /* ignore */ }
   permadeath.blur();
+  showRecord(); // perma death has its own ranking
 });
+
+// ---------------------------------------------------------------------------
+// Waiting to start: after loading or restarting, the awards stand still until
+// the player makes their first move. Perma death can only be switched before that.
+// ---------------------------------------------------------------------------
+let started = false;
+
+function setStarted(value) {
+  started = value;
+  permadeath.disabled = value;
+}
+
+function drawStartHint() {
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "bold 18px 'Courier New', monospace";
+  const x = arena.x + arena.width / 2;
+  const y = arena.y + arena.height * 0.3;
+  // Dark outline so it reads on the money floor
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#000";
+  ctx.strokeText("Move to start", x, y);
+  ctx.fillStyle = GOLD;
+  ctx.fillText("Move to start", x, y);
+}
 
 function gameOver() {
   gameOverTimer = GAME_OVER_SECONDS;
@@ -532,9 +561,12 @@ function loop(now) {
     else drawGameOver();
   } else {
     updatePlayer(seconds);
-    updateAwards(seconds);
-    updateScore(seconds);
+    if (started) {
+      updateAwards(seconds);
+      updateScore(seconds);
+    }
     draw();
+    if (!started) drawStartHint();
   }
   requestAnimationFrame(loop);
 }
@@ -551,16 +583,22 @@ window.addEventListener("keyup", (event) => {
 });
 
 // ---------------------------------------------------------------------------
-// Records: the best score ever for each difficulty, shared by everyone who
-// plays. Stored in a Firebase Realtime Database; its rules only accept a new
-// record if it's higher than the old one. Without a database URL the records
-// are kept on this device only.
+// Records: the best score ever for each difficulty, with and without perma
+// death, shared by everyone who plays. Stored in a Firebase Realtime Database;
+// its rules only accept a new record if it's higher than the old one. Without
+// a database URL the records are kept on this device only.
 // ---------------------------------------------------------------------------
 const RECORDS_DB_URL = "https://auuuuu-83d66-default-rtdb.europe-west1.firebasedatabase.app";
-const records = { easy: 0, normal: 0, hard: 0 };
+// "_pd" = perma death ranking
+const records = { easy: 0, normal: 0, hard: 0, easy_pd: 0, normal_pd: 0, hard_pd: 0 };
 const recordLabel = document.getElementById("record-label");
 const recordValue = document.getElementById("record-value");
-const pendingUploads = new Set(); // difficulties with a new record to send
+const pendingUploads = new Set(); // rankings with a new record to send
+
+// Which ranking the current game counts for
+function rankingKey() {
+  return difficulty + (permadeath.checked ? "_pd" : "");
+}
 let uploadTimer = null;
 
 try {
@@ -573,18 +611,19 @@ function saveRecordsLocally() {
 
 function showRecord() {
   const name = difficulty[0].toUpperCase() + difficulty.slice(1);
-  recordLabel.textContent = name + " record";
-  recordValue.textContent = records[difficulty];
+  recordLabel.textContent = (permadeath.checked ? "☠ " : "") + name + " record";
+  recordValue.textContent = records[rankingKey()];
 }
 
 // Called whenever the score changes
 function noteScore() {
-  if (score <= records[difficulty]) return;
-  records[difficulty] = score;
+  const key = rankingKey();
+  if (score <= records[key]) return;
+  records[key] = score;
   saveRecordsLocally();
   showRecord();
   // Send it, but at most about once a second while points keep coming
-  pendingUploads.add(difficulty);
+  pendingUploads.add(key);
   if (!uploadTimer) uploadTimer = setTimeout(uploadRecords, 1000);
 }
 
@@ -657,6 +696,7 @@ function showDifficulty() {
 
 function restart() {
   gameOverTimer = 0;
+  setStarted(false); // wait for the first move again
   score = 0;
   scoreText.textContent = "Points: 0";
   player.x = 0.5;
